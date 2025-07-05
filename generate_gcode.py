@@ -1,3 +1,31 @@
+"""
+SVG to G-code Conversion Module
+
+This module provides functionality to convert SVG files to G-code format
+for CNC machines and 3D printers. It's a standalone module that can be used
+independently or as part of the Django API.
+
+The module uses the py_svg2gcode library to perform the actual conversion
+and includes proper error handling, file management, and logging.
+
+Functions:
+    convert_svg_to_gcode: Convert SVG file to G-code with file output
+    
+Usage:
+    from generate_gcode import convert_svg_to_gcode
+    
+    # Convert SVG file to G-code
+    gcode_path = convert_svg_to_gcode("path/to/file.svg")
+    print(f"G-code saved to: {gcode_path}")
+    
+    # Or use as standalone script
+    python generate_gcode.py
+
+Note:
+    This module is now primarily used for standalone conversion.
+    For API usage, use the Django endpoints in gcode_api/views.py
+"""
+
 import os
 from datetime import datetime
 from py_svg2gcode import SVGConverter

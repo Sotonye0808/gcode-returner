@@ -1,3 +1,33 @@
+"""
+Signature Image Processing Module
+
+This module provides functionality for processing signature images to create
+cleaner versions suitable for comparison and analysis.
+
+Note: This module is being deprecated in favor of the Django API approach
+with signature pad integration. The image processing functionality may still
+be useful for converting scanned signatures to cleaner formats for comparison
+with signature pad outputs.
+
+Functions:
+    process_signature: Process signature image to create cleaner version
+
+Usage:
+    from process import process_signature
+    
+    # Process a signature image
+    output_path = process_signature("input.jpg", "output.png")
+    if output_path:
+        print(f"Processed signature saved to: {output_path}")
+
+The processing includes:
+- Image normalization and resizing
+- Noise reduction with Gaussian blur
+- Adaptive thresholding
+- Connected component analysis
+- Morphological operations for enhancement
+"""
+
 # To be deprecated or refactored to main.py using OOP principles. Mostly due to discovery of open-source integratable signature pad that can save in PNG, JPG and most importantly, SVG
 # method for processing signature images can still be used to convert image of expected signature to cleaner form to compare the signature pad output to the expected signature
 
@@ -56,7 +86,7 @@ def process_signature(image_path, output_path_png):
                             cv2.line(mask, 
                                    (int(x), int(y)), 
                                    (int(x2), int(y2)), 
-                                   255, 1)
+                                   255, 1) # type: ignore
 
         # Enhance details
         kernel = np.ones((2,2), np.uint8)

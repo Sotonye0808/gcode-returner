@@ -1,3 +1,31 @@
+"""
+Line Smoothness Evaluation Module
+
+This module provides functionality to calculate the smoothness score of lines
+in signature images or other line-based drawings.
+
+The smoothness is calculated by analyzing the curvature variance along contours
+in the image. Lower variance indicates smoother, more consistent lines.
+
+Functions:
+    smoothness_test: Calculate line smoothness score for an image
+
+Usage:
+    from evaluation_modules.line_smoothness import smoothness_test
+    
+    # Calculate smoothness for an image
+    score = smoothness_test("path/to/signature.jpg")
+    print(f"Smoothness score: {score:.4f}")
+    
+    # Interpret the score
+    if score >= 0.8:
+        print("Excellent line quality")
+    elif score >= 0.6:
+        print("Good line quality")
+    else:
+        print("Poor line quality")
+"""
+
 import numpy as np
 import cv2
 import os
@@ -8,6 +36,34 @@ load_dotenv()
 common_dir = os.getenv("COMMON_DIR")
 
 def smoothness_test(image_path):
+    """
+    Calculate the smoothness score for lines in an image.
+    
+    This function analyzes the curvature variance of contours in an image
+    to determine how smooth and consistent the lines are. The score ranges
+    from 0 to 1, where higher values indicate smoother lines.
+    
+    Args:
+        image_path (str): Path to the image file to analyze
+        
+    Returns:
+        float: Smoothness score between 0 and 1
+            - Values close to 1 indicate very smooth lines
+            - Values close to 0 indicate jagged or inconsistent lines
+            
+    Raises:
+        FileNotFoundError: If the image file does not exist
+        ValueError: If the image cannot be read or processed
+        
+    Example:
+        >>> score = smoothness_test("signature.jpg")
+        >>> print(f"Smoothness: {score:.4f}")
+        Smoothness: 0.7823
+        
+    Note:
+        The function preprocesses the image with Gaussian blur and uses
+        Canny edge detection to find contours for analysis.
+    """
     try:
         # Input validation
         if not os.path.exists(image_path):
