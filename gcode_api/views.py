@@ -110,28 +110,54 @@ class SVGToGCodeView(APIView):
             svg_content = ""
             
             if validated_data.get('svg_file'):
-                svg_content = validated_data['svg_file'].read().decode('utf-8')
-                logger.info(f"Processing SVG file: {validated_data['svg_file'].name}")
+                try:
+                    svg_content = validated_data['svg_file'].read().decode('utf-8')
+                    logger.info(f"Processing SVG file: {validated_data['svg_file'].name}")
+                    
+                    # Validate SVG content after reading from file
+                    if not svg_content.strip().startswith('<svg'):
+                        raise ValueError("Invalid SVG file content. Must start with <svg tag.")
+                        
+                except UnicodeDecodeError:
+                    logger.error("SVG file encoding error")
+                    return Response({
+                        'success': False,
+                        'error': 'Invalid file encoding',
+                        'details': 'SVG file must be UTF-8 encoded'
+                    }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 svg_content = validated_data['svg_data']
                 logger.info("Processing SVG data from request body")
             
+            # Additional SVG content validation
+            if not svg_content or len(svg_content.strip()) == 0:
+                raise ValueError("SVG content is empty")
+            
             # Convert SVG to G-code
             gcode = SVGConversionService.convert_svg_to_gcode(svg_content)
             
-            # Calculate metadata
-            gcode_lines = len(gcode.split('\\n'))
+            # Calculate metadata - FIXED LINE COUNTING
+            # Split by actual newlines and filter out empty lines
+            gcode_lines_list = [line.strip() for line in gcode.split('\n') if line.strip()]
+            gcode_lines = len(gcode_lines_list)
             gcode_size = len(gcode.encode('utf-8'))
             
-            logger.info(f"SVG conversion successful: {gcode_lines} lines, {gcode_size} bytes")
+            # Count specific G-code command types for additional metadata
+            movement_commands = len([line for line in gcode_lines_list if line.startswith(('G0', 'G1', 'G2', 'G3'))])
+            setup_commands = len([line for line in gcode_lines_list if line.startswith(('G28', 'G90', 'G91', 'M'))])
             
+            logger.info(f"SVG conversion successful: {gcode_lines} lines ({movement_commands} movements, {setup_commands} setup), {gcode_size} bytes")
+           
             return Response({
                 'success': True,
                 'gcode': gcode,
                 'message': 'SVG converted successfully to G-code',
                 'metadata': {
                     'gcode_lines': gcode_lines,
-                    'gcode_size': gcode_size
+                    'gcode_size': gcode_size,
+                    'movement_commands': movement_commands,
+                    'setup_commands': setup_commands,
+                    'estimated_duration': f"{gcode_lines * 0.1:.1f} seconds"  # Rough estimate
                 }
             }, status=status.HTTP_200_OK)
             

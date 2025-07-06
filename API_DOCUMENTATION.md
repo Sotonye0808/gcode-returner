@@ -47,7 +47,6 @@ All API responses follow a consistent JSON format:
   - `X-RateLimit-Reset`: Reset timestamp
 
 ## Endpoints
-
 ### 1. Health Check
 
 **GET** `/health/`

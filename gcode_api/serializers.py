@@ -60,17 +60,16 @@ class SVGToGCodeSerializer(serializers.Serializer):
                 )
         
         # Basic SVG validation
-        svg_content = ""
-        if data.get('svg_file'):
-            svg_content = data['svg_file'].read().decode('utf-8')
-            data['svg_file'].seek(0)  # Reset file pointer
-        else:
+        # Basic SVG validation - only validate raw SVG data, not file uploads
+        if data.get('svg_data'):
             svg_content = data['svg_data']
-            
-        if not svg_content.strip().startswith('<svg'):
-            raise serializers.ValidationError(
-                "Invalid SVG content. Must start with <svg tag."
-            )
+            if not svg_content.strip().startswith('<svg'):
+                raise serializers.ValidationError(
+                    "Invalid SVG content. Must start with <svg tag."
+                )
+        
+        # For file uploads, we'll validate the content in the view after reading
+        # This avoids file pointer issues during validation
             
         return data
 
