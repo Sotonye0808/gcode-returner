@@ -251,5 +251,5 @@ FRONTEND_SIGNING_KEY = os.getenv('FRONTEND_SIGNING_KEY', 'dev-signing-key-change
 
 TRUSTED_FRONTEND_ORIGINS = os.getenv(
     'TRUSTED_FRONTEND_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:4200,http://127.0.0.1:4200'
+    'https://signature-eu.web.app,http://localhost:4200,http://127.0.0.1:4200'
 ).split(',')
