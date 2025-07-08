@@ -245,3 +245,11 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+# Signed request settings for trusted frontend origins
+FRONTEND_SIGNING_KEY = os.getenv('FRONTEND_SIGNING_KEY', 'dev-signing-key-change-in-production')
+
+TRUSTED_FRONTEND_ORIGINS = os.getenv(
+    'TRUSTED_FRONTEND_ORIGINS',
+    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:4200,http://127.0.0.1:4200'
+).split(',')

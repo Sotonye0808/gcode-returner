@@ -31,9 +31,18 @@ from .serializers import (
     SVGToGCodeSerializer,
     SSIMEvaluationSerializer,
     SmoothnessEvaluationSerializer,
-    ExecutionErrorSerializer
+    ExecutionErrorSerializer,
+    SignedSubmissionSerializer,
+    UserDataRetrievalSerializer,
+    UserSerializer,
+    SignatureDataSerializer
 )
-from .services import SVGConversionService, EvaluationService
+from .services import (
+    SVGConversionService, 
+    EvaluationService,
+    SignatureVerificationService,
+    UserDataService
+)
 
 logger = logging.getLogger(__name__)
 
@@ -501,3 +510,255 @@ class HealthCheckView(APIView):
                 'execution_error': '/api/evaluate/execution-error/'
             }
         }, status=status.HTTP_200_OK)
+
+
+class SignedSubmissionView(APIView):
+    """
+    API view for signed submissions from trusted frontend origins.
+    
+    This endpoint accepts user data and signature information from verified
+    frontend applications. It requires HMAC signature verification to ensure
+    requests are coming from authorized origins.
+    
+    **Endpoint:** `POST /api/signed/submit/`
+    
+    **Request Methods:** POST
+    
+    **Authentication:** HMAC signature verification
+    
+    **Request Format:**
+    ```json
+    {
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "role": "student",
+        "department": "Computer Science",
+        "faculty": "Engineering",
+        "submitted_at": "2024-01-01T12:00:00Z",
+        "svg_data": "<svg>...</svg>",
+        "request_signature": "hmac_signature_here"
+    }
+    ```
+    
+    **Response Format:**
+    ```json
+    {
+        "success": true,
+        "user_id": 123,
+        "signature_id": 456,
+        "message": "Data stored successfully",
+        "gcode": "G28\\nG1 Z0.0\\n...",
+        "metadata": {
+            "gcode_lines": 150,
+            "gcode_size": 2048
+        }
+    }
+    ```
+    
+    **Status Codes:**
+    - 201: Data stored successfully
+    - 400: Bad request (invalid data or signature)
+    - 403: Forbidden (signature verification failed)
+    - 500: Internal server error
+    """
+    
+    parser_classes = [JSONParser]
+    
+    def post(self, request, *args, **kwargs):
+        """Handle signed submission from trusted frontend."""
+        try:
+            # Get request origin
+            origin = request.META.get('HTTP_ORIGIN', '')
+            
+            # Validate input data
+            serializer = SignedSubmissionSerializer(data=request.data)
+            if not serializer.is_valid():
+                logger.warning(f"Invalid signed submission: {serializer.errors}")
+                return Response({
+                    'success': False,
+                    'error': 'Invalid input data',
+                    'details': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = serializer.validated_data
+            
+            # Verify request signature
+            signature = validated_data.pop('request_signature')
+            if not SignatureVerificationService.verify_request_signature(
+                request.data, signature, origin
+            ):
+                logger.warning(f"Invalid signature from origin: {origin}")
+                return Response({
+                    'success': False,
+                    'error': 'Signature verification failed',
+                    'details': 'Request signature is invalid or origin not trusted'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Create or update user
+            user_data = {
+                'name': validated_data['name'],
+                'email': validated_data['email'],
+                'role': validated_data.get('role', 'student'),
+                'department': validated_data.get('department', ''),
+                'faculty': validated_data.get('faculty', ''),
+                'submitted_at': validated_data.get('submitted_at')
+            }
+            
+            user = UserDataService.create_or_update_user(user_data)
+            
+            # Store signature data
+            signature_data = UserDataService.store_signature_data(
+                user, validated_data['svg_data']
+            )
+            
+            # Create G-code 
+            gcode = signature_data.gcode_data
+            
+            logger.info(f"Signed submission successful for user: {user.email}")
+            
+            return Response({
+                'success': True,
+                'user_id': user.id,
+                'signature_id': signature_data.id,
+                'message': 'Data stored successfully',
+                'gcode': gcode,
+                'metadata': signature_data.gcode_metadata
+            }, status=status.HTTP_201_CREATED)
+            
+        except ValueError as e:
+            logger.error(f"Signed submission validation error: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Data processing error',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"Signed submission server error: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Internal server error',
+                'details': 'An unexpected error occurred while processing submission'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UserDataRetrievalView(APIView):
+    """
+    API view for retrieving user data from trusted frontend origins.
+    
+    This endpoint allows trusted frontend applications to retrieve user data
+    by email address. It requires HMAC signature verification.
+    
+    **Endpoint:** `POST /api/signed/retrieve/`
+    
+    **Request Methods:** POST
+    
+    **Authentication:** HMAC signature verification
+    
+    **Request Format:**
+    ```json
+    {
+        "email": "john.doe@example.com",
+        "request_signature": "hmac_signature_here"
+    }
+    ```
+    
+    **Response Format:**
+    ```json
+    {
+        "success": true,
+        "user": {
+            "id": 123,
+            "name": "John Doe",
+            "-email": "john.doe@example.com",
+            "role": "student",
+            "department": "Computer Science",
+            "faculty": "Engineering",
+            "created_at": "2024-01-01T12:00:00Z",
+            "updated_at": "2024-01-01T12:00:00Z",
+            "submitted_at": "2024-01-01T12:00:00Z"
+        },
+        "signatures": [
+            {
+                "id": 456,
+                "svg_data": "<svg>...</svg>",
+                "gcode_data": "G28\\nG1 Z0.0\\n...",
+                "metadata": {...},
+                "created_at": "2024-01-01T12:00:00Z"
+            }
+        ]
+    }
+    ```
+    
+    **Status Codes:**
+    - 200: Data retrieved successfully
+    - 400: Bad request (invalid data or signature)
+    - 403: Forbidden (signature verification failed)
+    - 404: User not found
+    - 500: Internal server error
+    """
+    
+    parser_classes = [JSONParser]
+    
+    def post(self, request, *args, **kwargs):
+        """Handle user data retrieval from trusted frontend."""
+        try:
+            # Get request origin
+            origin = request.META.get('HTTP_ORIGIN', '')
+            
+            # Validate input data
+            serializer = UserDataRetrievalSerializer(data=request.data)
+            if not serializer.is_valid():
+                logger.warning(f"Invalid retrieval request: {serializer.errors}")
+                return Response({
+                    'success': False,
+                    'error': 'Invalid input data',
+                    'details': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            validated_data = serializer.validated_data
+            
+            # Verify request signature
+            signature = validated_data['request_signature']
+            if not SignatureVerificationService.verify_request_signature(
+                request.data, signature, origin
+            ):
+                logger.warning(f"Invalid signature from origin: {origin}")
+                return Response({
+                    'success': False,
+                    'error': 'Signature verification failed',
+                    'details': 'Request signature is invalid or origin not trusted'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Retrieve user data
+            user_data = UserDataService.get_user_data(validated_data['email'])
+            
+            if user_data is None:
+                return Response({
+                    'success': False,
+                    'error': 'User not found',
+                    'details': f"No user found with email: {validated_data['email']}"
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            logger.info(f"Data retrieval successful for user: {validated_data['email']}")
+            
+            return Response({
+                'success': True,
+                **user_data
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError as e:
+            logger.error(f"Data retrieval validation error: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Data processing error',
+                'details': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"Data retrieval server error: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Internal server error',
+                'details': 'An unexpected error occurred while retrieving data'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

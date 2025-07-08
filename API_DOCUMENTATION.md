@@ -2,7 +2,7 @@
 
 ## Overview
 
-The GCode Returner API is a RESTful web service that provides SVG to G-code conversion and signature evaluation capabilities. Built with Django REST Framework, it offers robust, scalable endpoints for CNC/3D printing workflows and signature analysis applications.
+The GCode Returner API is a RESTful web service that provides SVG to G-code conversion, signature evaluation capabilities, and a playground database for testing and data collection. Built with Django REST Framework, it offers robust, scalable endpoints for CNC/3D printing workflows and signature analysis applications.
 
 ## Base URL
 
@@ -12,7 +12,13 @@ http://localhost:8000/api/
 
 ## Authentication
 
-Currently, the API is open and doesn't require authentication. Future versions may include token-based authentication.
+The API provides two types of access:
+
+### 1. Open Access
+Standard API endpoints that accept requests from any host and return their output without authentication.
+
+### 2. Signed Requests
+Special endpoints that only accept requests from trusted frontend origins with HMAC signature verification. These endpoints can store and modify database records.
 
 ## Response Format
 
@@ -42,11 +48,11 @@ All API responses follow a consistent JSON format:
 
 - **Rate Limit**: 100 requests per hour per IP address
 - **Headers**: Rate limit information is included in response headers
-  - `X-RateLimit-Limit`: Request limit
-  - `X-RateLimit-Remaining`: Remaining requests
-  - `X-RateLimit-Reset`: Reset timestamp
 
-## Endpoints
+## Open Access Endpoints
+
+These endpoints accept requests from any host and do not require authentication.
+
 ### 1. Health Check
 
 **GET** `/health/`
@@ -65,7 +71,9 @@ Check API service status and get endpoint information.
     "convert": "/api/convert/",
     "ssim": "/api/evaluate/ssim/",
     "smoothness": "/api/evaluate/smoothness/",
-    "execution_error": "/api/evaluate/execution-error/"
+    "execution_error": "/api/evaluate/execution-error/",
+    "signed_submit": "/api/signed/submit/",
+    "signed_retrieve": "/api/signed/retrieve/"
   }
 }
 ```
@@ -255,15 +263,181 @@ Calculate execution error between expected and actual toolpaths.
 }
 ```
 
+---
+
+## Signed Request Endpoints
+
+These endpoints require HMAC signature verification and only accept requests from trusted frontend origins.
+
+### Trusted Origins
+
+The following origins are currently trusted:
+- `http://localhost:3000`
+- `http://127.0.0.1:3000`
+- `http://localhost:4200`
+- `http://127.0.0.1:4200`
+
+### HMAC Signature Generation
+
+To generate a valid HMAC signature:
+
+1. Create a canonical string from your request data (excluding the signature field)
+2. Sort the data keys alphabetically
+3. Create a string in format: `key1=value1&key2=value2&...`
+4. Generate HMAC-SHA256 signature using the shared signing key
+
+Example in JavaScript:
+```javascript
+const crypto = require('crypto');
+
+function generateSignature(data, signingKey) {
+    // Remove signature field from data
+    const cleanData = { ...data };
+    delete cleanData.request_signature;
+    
+    // Create canonical string
+    const sortedKeys = Object.keys(cleanData).sort();
+    const canonicalString = sortedKeys
+        .map(key => `${key}=${cleanData[key]}`)
+        .join('&');
+    
+    // Generate HMAC signature
+    return crypto
+        .createHmac('sha256', signingKey)
+        .update(canonicalString)
+        .digest('hex');
+}
+```
+
+### 6. Signed Data Submission
+
+**POST** `/signed/submit/`
+
+Submit user data and signature for storage in the playground database.
+
+**Authentication:** HMAC signature verification required
+
+**Content-Type:** `application/json`
+
+#### Request Format
+
+```json
+{
+  "name": "John Doe",
+  "email": "john.doe@example.com",
+  "role": "student",
+  "department": "Computer Science",
+  "faculty": "Engineering",
+  "submitted_at": "2024-01-01T12:00:00Z",
+  "svg_data": "<svg width=\"100\" height=\"100\">...</svg>",
+  "request_signature": "hmac_sha256_signature_here"
+}
+```
+
+#### Request Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| name | string | Yes | User's full name |
+| email | string | Yes | User's email (unique identifier) |
+| role | string | No | User's role (student, staff, lecturer, hod, dean, researcher, visitor, other) |
+| department | string | No | User's department |
+| faculty | string | No | User's faculty |
+| submitted_at | datetime | No | Submission timestamp (ISO format) |
+| svg_data | string | Yes | SVG signature data |
+| request_signature | string | Yes | HMAC signature for verification |
+
+#### Response
+
+```json
+{
+  "success": true,
+  "user_id": 123,
+  "signature_id": 456,
+  "message": "Data stored successfully",
+  "gcode_preview": "G28\nG1 Z0.0\nM05\n...",
+  "metadata": {
+    "gcode_lines": 150,
+    "gcode_size": 2048,
+    "movement_commands": 120,
+    "setup_commands": 30,
+    "estimated_duration": "15.0 seconds"
+  }
+}
+```
+
+#### User Data Behavior
+
+- If a user with the given email exists, their data will be updated with new information
+- If the user doesn't exist, a new user record will be created
+- Each submission creates a new signature record, allowing multiple signatures per user
+- The `submitted_at` field is only set for new users (not updated for existing users)
+
+### 7. User Data Retrieval
+
+**POST** `/signed/retrieve/`
+
+Retrieve all data for a user by email address.
+
+**Authentication:** HMAC signature verification required
+
+**Content-Type:** `application/json`
+
+#### Request Format
+
+```json
+{
+  "email": "john.doe@example.com",
+  "request_signature": "hmac_sha256_signature_here"
+}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": 123,
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "student",
+    "department": "Computer Science",
+    "faculty": "Engineering",
+    "created_at": "2024-01-01T12:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z",
+    "submitted_at": "2024-01-01T12:00:00Z"
+  },
+  "signatures": [
+    {
+      "id": 456,
+      "svg_data": "<svg>...</svg>",
+      "gcode_data": "G28\nG1 Z0.0\nM05\n...",
+      "metadata": {
+        "gcode_lines": 150,
+        "gcode_size": 2048,
+        "movement_commands": 120,
+        "setup_commands": 30,
+        "estimated_duration": "15.0 seconds"
+      },
+      "created_at": "2024-01-01T12:00:00Z"
+    }
+  ]
+}
+```
+
 ## Error Codes
 
-| Status Code | Description                                     |
-| ----------- | ----------------------------------------------- |
-| 200         | Success                                         |
-| 400         | Bad Request - Invalid input data                |
-| 413         | Payload Too Large - File size exceeds limit     |
-| 429         | Too Many Requests - Rate limit exceeded         |
-| 500         | Internal Server Error - Server processing error |
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Success |
+| 201 | Created successfully |
+| 400 | Bad Request - Invalid input data |
+| 403 | Forbidden - Signature verification failed or untrusted origin |
+| 404 | Not Found - User not found |
+| 413 | Payload Too Large - File size exceeds limit |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error - Server processing error |
 
 ## File Upload Limitations
 
@@ -271,6 +445,37 @@ Calculate execution error between expected and actual toolpaths.
 - **Supported image formats**: PNG, JPG, JPEG
 - **Supported SVG**: Valid XML-based SVG files
 - **Base64 encoding**: Supported with or without data URL prefix
+
+## Database Schema
+
+### User Model
+
+```json
+{
+  "id": "integer (auto-generated)",
+  "name": "string (max 255 chars)",
+  "email": "string (unique)",
+  "role": "string (choices: student, staff, lecturer, hod, dean, researcher, visitor, other)",
+  "department": "string (optional, max 255 chars)",
+  "faculty": "string (optional, max 255 chars)",
+  "created_at": "datetime (auto-generated)",
+  "updated_at": "datetime (auto-updated)",
+  "submitted_at": "datetime (set on first submission)"
+}
+```
+
+### SignatureData Model
+
+```json
+{
+  "id": "integer (auto-generated)",
+  "user": "foreign key to User",
+  "svg_data": "text",
+  "gcode_data": "text",
+  "gcode_metadata": "json object",
+  "created_at": "datetime (auto-generated)"
+}
+```
 
 ## Usage Examples
 
@@ -377,5 +582,22 @@ curl -X POST http://localhost:8000/api/evaluate/execution-error/ \
 - SVG conversion time depends on complexity
 - Consider implementing caching for repeated requests
 - Monitor memory usage with large file uploads
+
+## Security Considerations
+
+1. **HMAC Signatures**: All signed requests must include valid HMAC signatures
+2. **Origin Verification**: Requests are verified against trusted frontend origins
+3. **Data Validation**: All input data is validated before processing
+4. **Rate Limiting**: API calls are rate-limited to prevent abuse
+5. **Logging**: All requests and errors are logged for monitoring
+
+## Development and Testing
+
+For development and testing:
+
+1. **Signing Key**: Use the development signing key or set `FRONTEND_SIGNING_KEY` environment variable
+2. **Trusted Origins**: Localhost origins are trusted by default for development
+3. **Database**: Uses SQLite for development, can be configured for production databases
+4. **Playground Data**: All data in the playground database is for testing purposes
 
 For additional support or questions, please refer to the main README.md file or contact the development team.

@@ -1,6 +1,6 @@
 # GCode Returner API - Django Backend
 
-A comprehensive Django REST API for SVG to G-code conversion and signature evaluation metrics. This backend service provides robust endpoints for CNC/3D printing workflows and signature analysis applications.
+A comprehensive Django REST API for SVG to G-code conversion, signature evaluation metrics, and a playground database for testing and data collection. Built with Django REST Framework, this backend service provides robust endpoints for CNC/3D printing workflows and signature analysis applications with secure data storage capabilities.
 
 ## 🚀 Features
 
@@ -14,12 +14,21 @@ A comprehensive Django REST API for SVG to G-code conversion and signature evalu
 
 ### API Features
 
-- RESTful API design with comprehensive documentation
-- Support for file uploads and base64 encoded data
-- Robust input validation and error handling
-- CORS support for frontend integration
-- Health check endpoint for monitoring
-- Comprehensive logging and monitoring
+- **Open Access Endpoints**: Standard API endpoints that accept requests from any host
+- **Signed Request Endpoints**: Special endpoints for trusted frontend origins with HMAC signature verification
+- **Playground Database**: Store and retrieve user data and signatures for testing and data collection
+- **Robust Input Validation**: Comprehensive error handling and data validation
+- **CORS Support**: Proper CORS configuration for frontend integration
+- **Health Check Endpoint**: Monitor API status and endpoints
+- **Comprehensive Logging**: Detailed logging and monitoring capabilities
+
+### Database Features
+
+- **User Management**: Store user information (name, email, role, department, faculty)
+- **Signature Storage**: Store SVG data and generated G-code for each user
+- **Data Retrieval**: Retrieve all user data and signatures by email
+- **Update Capability**: Update existing user data while preserving signature history
+- **HMAC Security**: Secure signed requests with HMAC-SHA256 verification
 
 ## 📋 Table of Contents
 
@@ -27,6 +36,8 @@ A comprehensive Django REST API for SVG to G-code conversion and signature evalu
 - [Quick Start](#quick-start)
 - [API Documentation](#api-documentation)
 - [Usage Examples](#usage-examples)
+- [Database Schema](#database-schema)
+- [Frontend Integration](#frontend-integration)
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
 - [Development](#development)
@@ -81,8 +92,11 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 # CORS Settings
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
-# Database (optional, defaults to SQLite)
-# DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+# Frontend Signing Key for HMAC verification
+FRONTEND_SIGNING_KEY=your-signing-key-for-hmac-verification
+
+# Trusted Frontend Origins
+TRUSTED_FRONTEND_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:4200,http://127.0.0.1:4200
 
 # Common Directory (for compatibility with existing modules)
 COMMON_DIR=c:\Users\Sotonye\OneDrive\Documents\school work\Final year project related\gcode-returner
@@ -91,6 +105,7 @@ COMMON_DIR=c:\Users\Sotonye\OneDrive\Documents\school work\Final year project re
 ### Step 5: Run Database Migrations
 
 ```bash
+python manage.py makemigrations
 python manage.py migrate
 ```
 
@@ -112,7 +127,7 @@ Test the API is running:
 curl http://localhost:8000/api/health/
 ```
 
-Expected response:
+Expected response includes all available endpoints:
 
 ```json
 {
@@ -123,7 +138,9 @@ Expected response:
     "convert": "/api/convert/",
     "ssim": "/api/evaluate/ssim/",
     "smoothness": "/api/evaluate/smoothness/",
-    "execution_error": "/api/evaluate/execution-error/"
+    "execution_error": "/api/evaluate/execution-error/",
+    "signed_submit": "/api/signed/submit/",
+    "signed_retrieve": "/api/signed/retrieve/"
   }
 }
 ```
@@ -136,11 +153,11 @@ Expected response:
 http://localhost:8000/api/
 ```
 
-### Authentication
+### Endpoint Categories
 
-Currently, the API is open and doesn't require authentication. Authentication can be added as needed.
+#### 1. Open Access Endpoints
 
-### Endpoints Overview
+These endpoints accept requests from any host without authentication:
 
 | Endpoint                     | Method | Description                      |
 | ---------------------------- | ------ | -------------------------------- |
@@ -150,11 +167,20 @@ Currently, the API is open and doesn't require authentication. Authentication ca
 | `/evaluate/execution-error/` | POST   | Calculate G-code execution error |
 | `/health/`                   | GET    | API health check                 |
 
+#### 2. Signed Request Endpoints
+
+These endpoints require HMAC signature verification from trusted origins:
+
+| Endpoint            | Method | Description                                |
+| ------------------- | ------ | ------------------------------------------ |
+| `/signed/submit/`   | POST   | Submit user data and signature for storage |
+| `/signed/retrieve/` | POST   | Retrieve user data by email                |
+
 ## 💡 Usage Examples
 
-### 1. SVG to G-code Conversion
+### Open Access Usage
 
-#### Using Raw SVG Data
+#### SVG to G-code Conversion
 
 ```bash
 curl -X POST http://localhost:8000/api/convert/ \
@@ -261,6 +287,140 @@ curl -X POST http://localhost:8000/api/evaluate/execution-error/ \
 }
 ```
 
+### Signed Request Usage
+
+#### Submit User Data with Signature
+
+```bash
+# Note: In practice, you would generate the HMAC signature programmatically
+curl -X POST http://localhost:8000/api/signed/submit/ \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d '{
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "role": "student",
+    "department": "Computer Science",
+    "faculty": "Engineering",
+    "svg_data": "<svg>...</svg>",
+    "request_signature": "calculated_hmac_signature"
+  }'
+```
+
+#### Retrieve User Data
+
+```bash
+curl -X POST http://localhost:8000/api/signed/retrieve/ \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d '{
+    "email": "john.doe@example.com",
+    "request_signature": "calculated_hmac_signature"
+  }'
+```
+
+## 🗄️ Database Schema
+
+### User Model
+
+```python
+{
+    "id": "integer (auto-generated primary key)",
+    "name": "string (max 255 characters)",
+    "email": "string (unique identifier)",
+    "role": "choice (student, staff, lecturer, hod, dean, researcher, visitor, other)",
+    "department": "string (optional, max 255 characters)",
+    "faculty": "string (optional, max 255 characters)",
+    "created_at": "datetime (auto-generated)",
+    "updated_at": "datetime (auto-updated)",
+    "submitted_at": "datetime (set on first submission)"
+}
+```
+
+### SignatureData Model
+
+```python
+{
+    "id": "integer (auto-generated primary key)",
+    "user": "foreign key to User model",
+    "svg_data": "text field (stores SVG content)",
+    "gcode_data": "text field (stores generated G-code)",
+    "gcode_metadata": "JSON field (stores G-code statistics)",
+    "created_at": "datetime (auto-generated)"
+}
+```
+
+### Data Relationships
+
+- One user can have multiple signature submissions
+- Each signature submission stores both SVG and G-code data
+- User data is updated on subsequent submissions, but signature history is preserved
+- Email address serves as the unique identifier for users
+
+## 🔧 Frontend Integration
+
+### HMAC Signature Generation
+
+For signed requests, generate HMAC signatures using this process:
+
+```javascript
+const crypto = require("crypto");
+
+function generateSignature(data, signingKey) {
+  // Ensure signing key is not empty
+  if (!signingKey) {
+    throw new Error('Signing key is required');
+  }
+
+  // Remove signature field from data
+  const cleanData = { ...data };
+  delete cleanData.request_signature;
+
+  // Create canonical string (sorted keys)
+  const sortedKeys = Object.keys(cleanData).sort();
+  const canonicalString = sortedKeys
+    .map((key) => `${key}=${cleanData[key]}`)
+    .join("&");
+
+  // Generate HMAC-SHA256 signature
+  return crypto
+    .createHmac("sha256", signingKey)
+    .update(canonicalString)
+    .digest("hex");
+}
+```
+
+### Integration Example
+
+```javascript
+// Import your environment configuration
+import { data } from './environment/environment';
+
+// Submit signature data
+const userData = {
+  name: "John Doe",
+  email: "john@example.com",
+  role: "student",
+  department: "Computer Science",
+  svg_data: "<svg>...</svg>",
+};
+
+// Generate signature using the configured signing key
+userData.request_signature = generateSignature(userData, data.gcodeReturner.signingKey);
+
+// Send request
+const response = await fetch("http://localhost:8000/api/signed/submit/", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Origin: "http://localhost:3000",
+  },
+  body: JSON.stringify(userData),
+});
+
+const result = await response.json();
+```
+
 ## 📁 Project Structure
 
 ```
@@ -269,37 +429,24 @@ gcode-returner/
 ├── requirements.txt          # Python dependencies
 ├── .env.example             # Environment variables template
 ├── README.md                # This file
+├── API_DOCUMENTATION.md     # Detailed API documentation
 ├── .gitignore              # Git ignore rules
 │
 ├── gcode_returner/          # Django project settings
-│   ├── __init__.py
-│   ├── settings.py          # Django configuration
+│   ├── settings.py          # Django configuration (updated)
 │   ├── urls.py             # Main URL configuration
-│   ├── wsgi.py             # WSGI application
-│   └── asgi.py             # ASGI application
+│   └── ...
 │
 ├── gcode_api/               # Main API application
-│   ├── __init__.py
-│   ├── apps.py             # App configuration
-│   ├── models.py           # Database models (currently empty)
-│   ├── serializers.py      # DRF serializers for validation
-│   ├── services.py         # Business logic layer
-│   ├── views.py            # API views/endpoints
-│   ├── urls.py             # API URL patterns
-│   ├── admin.py            # Django admin configuration
-│   └── tests.py            # Test cases
+│   ├── models.py           # Database models (NEW)
+│   ├── serializers.py      # DRF serializers (updated)
+│   ├── services.py         # Business logic layer (updated)
+│   ├── views.py            # API views/endpoints (updated)
+│   ├── urls.py             # API URL patterns (updated)
+│   └── ...
 │
 ├── py_svg2gcode/            # SVG to G-code conversion library
-│   ├── __init__.py
-│   ├── svg2gcode.py        # Main conversion class
-│   ├── config.py           # Configuration settings
-│   └── local_lib/          # Supporting libraries
-│
 ├── evaluation_modules/      # Evaluation metric modules
-│   ├── ssim.py             # SSIM calculation
-│   ├── line_smoothness.py  # Line smoothness analysis
-│   └── gcode_error.py      # Execution error calculation
-│
 ├── testing_images/          # Test image directory (gitignored)
 ├── gcode_experiments/       # G-code output directory (gitignored)
 └── logs/                   # Application logs
@@ -309,73 +456,51 @@ gcode-returner/
 
 ### Environment Variables
 
-| Variable               | Description                | Default                 |
-| ---------------------- | -------------------------- | ----------------------- |
-| `SECRET_KEY`           | Django secret key          | Required                |
-| `DEBUG`                | Debug mode                 | `False`                 |
-| `ALLOWED_HOSTS`        | Allowed host names         | `localhost,127.0.0.1`   |
-| `CORS_ALLOWED_ORIGINS` | CORS allowed origins       | `http://localhost:3000` |
-| `DATABASE_URL`         | Database connection string | SQLite                  |
+| Variable                   | Description                         | Default                      |
+| -------------------------- | ----------------------------------- | ---------------------------- |
+| `SECRET_KEY`               | Django secret key                   | Required                     |
+| `DEBUG`                    | Debug mode                          | `False`                      |
+| `ALLOWED_HOSTS`            | Allowed host names                  | `localhost,127.0.0.1`        |
+| `CORS_ALLOWED_ORIGINS`     | CORS allowed origins                | `http://localhost:3000`      |
+| `FRONTEND_SIGNING_KEY`     | HMAC signing key for frontend       | Required for signed requests |
+| `TRUSTED_FRONTEND_ORIGINS` | Trusted origins for signed requests | `http://localhost:3000,...`  |
 
-### G-code Configuration
+### Security Settings
 
-The G-code generation can be configured in `py_svg2gcode/config.py`:
-
-```python
-# Print bed dimensions (mm)
-bed_max_x = 150
-bed_max_y = 150
-
-# Curve smoothness (smaller = smoother)
-smoothness = 0.2
-
-# G-code templates
-preamble = "G28\nG1 Z0.0\nM05"
-postamble = "G28"
-```
+- **HMAC Verification**: All signed requests must include valid HMAC signatures
+- **Origin Checking**: Signed requests are validated against trusted origins
+- **Data Validation**: All data is validated before processing
+- **Rate Limiting**: API calls are rate-limited to prevent abuse
+- **Input Validation**: All input data is validated before processing
 
 ## 🧪 Development
 
-### Running in Development Mode
+### Database Operations
 
 ```bash
-# Activate virtual environment
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-
-# Install development dependencies
-pip install -r requirements.txt
-
-# Run development server with auto-reload
-python manage.py runserver
-```
-
-### Code Style and Linting
-
-```bash
-# Install development tools
-pip install black flake8 isort
-
-# Format code
-black .
-
-# Check code style
-flake8 .
-
-# Sort imports
-isort .
-```
-
-### Creating Migrations (if models are added)
-
-```bash
+# Create migrations after model changes
 python manage.py makemigrations gcode_api
+
+# Apply migrations
 python manage.py migrate
+
+# Create admin superuser
+python manage.py createsuperuser
+
+# Access admin panel at http://localhost:8000/admin/
 ```
 
-### Creating Admin User
+### Testing Signed Requests
 
 ```bash
-python manage.py createsuperuser
+# Run the test API script
+python test_api.py
+
+# Or test individual endpoints
+curl -X POST http://localhost:8000/api/signed/submit/ \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3000" \
+  -d '{"email": "test@example.com", "name": "Test User", "svg_data": "<svg></svg>", "request_signature": "test"}'
 ```
 
 ## 🧪 Testing
@@ -393,49 +518,30 @@ python manage.py test gcode_api
 pip install coverage
 coverage run --source='.' manage.py test
 coverage report
-coverage html  # Generates HTML coverage report
 ```
-
-### Manual API Testing
-
-Use the provided examples above or tools like:
-
-- **Postman**: Import the API collection (can be generated)
-- **curl**: Command-line testing (examples provided)
-- **HTTPie**: User-friendly HTTP client
-- **Insomnia**: REST client
 
 ## 🚀 Deployment
 
-### Production Settings
+### Production Considerations
 
-1. Set `DEBUG=False` in environment variables
-2. Configure proper `SECRET_KEY`
-3. Set up proper database (PostgreSQL recommended)
-4. Configure static file serving
-5. Set up proper logging
+1. **Environment Variables**: Set proper production values
+2. **Database**: Configure PostgreSQL or MySQL for production
+3. **Signing Keys**: Use secure, unique signing keys
+4. **CORS Settings**: Restrict to production frontend domains
+5. **Static Files**: Configure proper static file serving
+6. **HTTPS**: Enable HTTPS for production
 
-### Using Docker (Optional)
+### Example Production Environment
 
-```dockerfile
-# Dockerfile example
-FROM python:3.9-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-EXPOSE 8000
-
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+```env
+SECRET_KEY=secure-production-secret-key
+DEBUG=False
+ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
+CORS_ALLOWED_ORIGINS=https://yourfrontend.com
+FRONTEND_SIGNING_KEY=secure-production-signing-key
+TRUSTED_FRONTEND_ORIGINS=https://yourfrontend.com
+DATABASE_URL=postgresql://user:password@localhost:5432/gcode_db
 ```
-
-### Environment-Specific Configuration
-
-- **Development**: Use SQLite, DEBUG=True
-- **Staging**: Use PostgreSQL, DEBUG=False, limited CORS
-- **Production**: Use PostgreSQL, DEBUG=False, strict security settings
 
 ## 🤝 Contributing
 
@@ -449,11 +555,11 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 ### Development Guidelines
 
-- Follow PEP 8 style guidelines
-- Add docstrings to all functions and classes
-- Write tests for new functionality
-- Update documentation as needed
-- Ensure backward compatibility
+- Follow Django best practices
+- Add comprehensive tests for new features
+- Update documentation for any API changes
+- Ensure database migrations are included
+- Test both open access and signed request functionality
 
 ## 📄 License
 
@@ -474,4 +580,4 @@ This project is part of a final year academic project. Please contact the author
 
 ---
 
-For detailed API documentation and examples, visit the health check endpoint after starting the server.
+For detailed API documentation including signed request examples and HMAC signature generation, see `API_DOCUMENTATION.md`.
