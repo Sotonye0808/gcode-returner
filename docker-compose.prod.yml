@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=signature-app-for-my-project-2025
+      - ALLOWED_HOSTS=signatureeube-7dc6kybr.b4a.run,node319a.containers.back4app.com,node337a.containers.back4app.com,gcode-returner.vercel.app,signature-eu-be.back4app.io,localhost,127.0.0.1,0.0.0.0
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200,http://127.0.0.1:3000,http://127.0.0.1:4200,https://signature-eu.web.app
+      - COMMON_DIR=/app
+      - MAX_UPLOAD_SIZE=10485760
+      - LOG_LEVEL=INFO
+      - API_RATE_LIMIT=100/hour
+      - FRONTEND_SIGNING_KEY=signature-app-for-my-project-2025
+      - TRUSTED_FRONTEND_ORIGINS=http://localhost:3000,http://localhost:4200,http://127.0.0.1:3000,http://127.0.0.1:4200,https://signature-eu.web.app
+    volumes:
+      - ./logs:/app/logs
+      - ./media:/app/media
+      - ./db:/app/db  # Persistent SQLite database
+    restart: unless-stopped
+    command: ["gunicorn", "gcode_returner.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]

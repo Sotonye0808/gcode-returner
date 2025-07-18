@@ -20,6 +20,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url 
 
 # Load environment variables
 load_dotenv()
@@ -91,6 +92,27 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Database configuration
+if 'DATABASE_URL' in os.environ and dj_database_url:
+    DATABASES = {
+        'default': dj_database_url.parse(os.environ.get('DATABASE_URL')) # type: ignore
+    }
+else:
+    # Use SQLite with a path that works in both local and Docker environments
+    if os.path.exists('/app'):
+        # Running in Docker
+        db_path = '/app/db/db.sqlite3'
+    else:
+        # Running locally
+        db_path = BASE_DIR / 'db.sqlite3'
+    
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': db_path,
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
