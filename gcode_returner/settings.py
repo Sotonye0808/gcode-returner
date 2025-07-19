@@ -321,3 +321,33 @@ if BACK4APP_APP_ID or os.environ.get('BACK4APP_DEPLOYMENT'):
     # Logging for production
     LOGGING['loggers']['gcode_api']['level'] = 'WARNING'
     LOGGING['root']['level'] = 'WARNING'
+
+# Render.com Production Configuration
+RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL')
+if RENDER_EXTERNAL_URL:
+    # Production settings for Render
+    DEBUG = False
+    
+    # Use Render's external URL
+    ALLOWED_HOSTS.extend([
+        RENDER_EXTERNAL_URL.replace('https://', ''),
+        '.onrender.com'
+    ])
+    
+    # Security settings for HTTPS
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # Static files configuration for production
+    STATIC_URL = '/static/'
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    
+    # Logging for production
+    LOGGING['loggers']['gcode_api']['level'] = 'WARNING'
+    LOGGING['root']['level'] = 'WARNING'
