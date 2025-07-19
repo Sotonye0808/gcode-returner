@@ -44,9 +44,9 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Health check using Python instead of curl
+# Health check using Python with fallback
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')" || exit 1
+    CMD python -c "import urllib.request,socket; urllib.request.urlopen(f'http://{socket.gethostname()}:8000/api/health/', timeout=3)" 2>/dev/null || python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')" || exit 1
 
 # Run database migrations and start the application
 #for dev

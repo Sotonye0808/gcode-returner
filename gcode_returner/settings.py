@@ -285,7 +285,7 @@ if BACK4APP_APP_ID or os.environ.get('BACK4APP_DEPLOYMENT'):
     # Remove localhost from allowed hosts in production
     allowed_hosts = os.getenv('ALLOWED_HOSTS', '').split(',')
     # Filter out localhost for production
-    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts if host.strip() and 'localhost' not in host and '127.0.0.1' not in host]
+    #ALLOWED_HOSTS = [host.strip() for host in allowed_hosts if host.strip() and 'localhost' not in host and '127.0.0.1' not in host]
     
     # Add Back4App domains
     ALLOWED_HOSTS.extend([
