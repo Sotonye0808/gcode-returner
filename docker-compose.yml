@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DEBUG=False
+      - DEBUG=True
       - SECRET_KEY=signature-app-for-my-project-2025
       - ALLOWED_HOSTS=ALLOWED_HOSTS=parseapi.back4app.com,signatureeube-7dc6kybr.b4a.run,node319a.containers.back4app.com,node337a.containers.back4app.com,gcode-returner.vercel.app,signature-eu-be.back4app.io,localhost,127.0.0.1,0.0.0.0
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200,http://127.0.0.1:3000,http://127.0.0.1:4200,https://signature-eu.web.app
@@ -16,6 +16,7 @@ services:
       - API_RATE_LIMIT=100/hour
       - FRONTEND_SIGNING_KEY=signature-app-for-my-project-2025
       - TRUSTED_FRONTEND_ORIGINS=http://localhost:3000,http://localhost:4200,http://127.0.0.1:3000,http://127.0.0.1:4200,https://signature-eu.web.app
+      - BACK4APP_APP_ID=1wGfBuXsHNpKO7LWzmXwJBPDtTReB6g6uyBxItRa
     volumes:
       - ./logs:/app/logs
       - ./media:/app/media

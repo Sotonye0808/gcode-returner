@@ -291,13 +291,24 @@ class SignatureVerificationService:
     @staticmethod
     def get_trusted_origins():
         """Get list of trusted frontend origins."""
-        return [
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://localhost:4200',
-            'http://127.0.0.1:4200',
-            # Add production URLs as needed
-        ]
+        # Get from environment variable or use defaults
+        trusted_origins = os.environ.get('TRUSTED_FRONTEND_ORIGINS', '')
+        if trusted_origins:
+            return [origin.strip() for origin in trusted_origins.split(',') if origin.strip()]
+        
+        # Fallback to defaults (for development)
+        if settings.DEBUG:
+            return [
+                'http://localhost:3000',
+                'http://127.0.0.1:3000',
+                'http://localhost:4200',
+                'http://127.0.0.1:4200',
+            ]
+        else:
+            # Production defaults
+            return [
+                'https://signature-eu.web.app',
+            ]
     
     @staticmethod
     def get_signing_key():
@@ -527,7 +538,7 @@ class UserDataService:
             
             user_data = {
                 'user': {
-                    'id': user.id,
+                    'id': user.id, # type: ignore
                     'name': user.name,
                     'email': user.email,
                     'role': user.role,
@@ -542,7 +553,7 @@ class UserDataService:
             
             for signature in signatures:
                 signature_info = {
-                    'id': signature.id,
+                    'id': signature.id, # type: ignore
                     'svg_data': signature.svg_data,
                     'gcode_data': signature.gcode_data,
                     'metadata': signature.gcode_metadata,

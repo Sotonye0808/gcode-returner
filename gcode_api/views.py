@@ -497,12 +497,13 @@ class HealthCheckView(APIView):
     def get(self, request, *args, **kwargs):
         """Handle GET request for health check."""
         from django.utils import timezone
-        
-        return Response({
+
+        httpResponse = Response({
             'status': 'healthy',
             'service': 'GCode Returner API',
             'version': '1.0.0',
             'timestamp': timezone.now().isoformat(),
+            'environment': 'development',
             'endpoints': {
                 'convert': '/api/convert/',
                 'ssim': '/api/evaluate/ssim/',
@@ -511,6 +512,27 @@ class HealthCheckView(APIView):
             }
         }, status=status.HTTP_200_OK)
 
+        httpsResponse = Response({
+            'status': 'healthy',
+            'service': 'GCode Returner API',
+            'version': '1.0.0',
+            'timestamp': timezone.now().isoformat(),
+            'environment': 'production',
+            'https': request.is_secure(),
+            'endpoints': {
+                'convert': '/api/convert/',
+                'ssim': '/api/evaluate/ssim/',
+                'smoothness': '/api/evaluate/smoothness/',
+                'execution_error': '/api/evaluate/execution-error/'
+            }
+        }, 
+        headers={
+            'Access-Control-Allow-Origin': 'https://signature-eu.web.app',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+        }, status=status.HTTP_200_OK)
+        
+        return httpsResponse if request.is_secure() else httpResponse
 
 class SignedSubmissionView(APIView):
     """

@@ -49,4 +49,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')" || exit 1
 
 # Run database migrations and start the application
-CMD sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+#for dev
+#CMD sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000" 
+# for production
+# Use gunicorn for production instead of runserver
+CMD sh -c "python manage.py migrate && gunicorn gcode_returner.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 120 --access-logfile - --error-logfile -"

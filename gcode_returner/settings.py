@@ -275,3 +275,49 @@ TRUSTED_FRONTEND_ORIGINS = os.getenv(
     'TRUSTED_FRONTEND_ORIGINS',
     'https://signature-eu.web.app,http://localhost:4200,http://127.0.0.1:4200'
 ).split(',')
+
+# Back4App Production Configuration
+BACK4APP_APP_ID = os.environ.get('BACK4APP_APP_ID')
+if BACK4APP_APP_ID or os.environ.get('BACK4APP_DEPLOYMENT'):
+    # Production settings for Back4App
+    DEBUG = False
+    
+    # Remove localhost from allowed hosts in production
+    allowed_hosts = os.getenv('ALLOWED_HOSTS', '').split(',')
+    # Filter out localhost for production
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts if host.strip() and 'localhost' not in host and '127.0.0.1' not in host]
+    
+    # Add Back4App domains
+    ALLOWED_HOSTS.extend([
+        '.back4app.io',
+        '.containers.back4app.com',
+        '.parseapi.back4app.com'
+    ])
+    
+    # Security settings for HTTPS
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # CORS settings for production
+    CORS_ALLOWED_ORIGINS = [
+        'https://signature-eu.web.app',
+    ]
+    
+    # Trusted frontend origins for production
+    TRUSTED_FRONTEND_ORIGINS = [
+        'https://signature-eu.web.app',
+    ]
+    
+    # Static files configuration for production
+    STATIC_URL = '/static/'
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    
+    # Logging for production
+    LOGGING['loggers']['gcode_api']['level'] = 'WARNING'
+    LOGGING['root']['level'] = 'WARNING'

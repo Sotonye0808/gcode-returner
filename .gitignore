@@ -90,3 +90,6 @@ cover/
 *.temp
 tmp/
 temp/
+
+# Others
+docker-compose.yml
