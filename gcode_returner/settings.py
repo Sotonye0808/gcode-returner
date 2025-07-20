@@ -20,7 +20,8 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import dj_database_url 
+import dj_database_url
+import socket 
 
 # Load environment variables
 load_dotenv()
@@ -34,7 +35,16 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key-change-in-prod
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# Get container hostname dynamically
+def get_container_hostname():
+    try:
+        return socket.gethostname()
+    except:
+        return None
+
+# ALLOWED_HOSTS configuration with dynamic container hostname
+base_allowed_hosts = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [host.strip() for host in base_allowed_hosts if host.strip()]
 
 # Application definition
 INSTALLED_APPS = [
@@ -276,14 +286,19 @@ TRUSTED_FRONTEND_ORIGINS = os.getenv(
     'https://signature-eu.web.app,http://localhost:4200,http://127.0.0.1:4200'
 ).split(',')
 
+# Add container hostname dynamically for Docker environments
+if os.path.exists('/app'):  # Running in Docker
+    container_hostname = get_container_hostname()
+    if container_hostname:
+        ALLOWED_HOSTS.append(container_hostname)
+    # Add wildcard for internal Docker networking
+    ALLOWED_HOSTS.extend(['0.0.0.0', '*'])
+
 # Back4App Production Configuration
 BACK4APP_APP_ID = os.environ.get('BACK4APP_APP_ID')
 if BACK4APP_APP_ID or os.environ.get('BACK4APP_DEPLOYMENT'):
     # Production settings for Back4App
     DEBUG = False
-    
-    # Remove localhost from allowed hosts in production
-    allowed_hosts = os.getenv('ALLOWED_HOSTS', '').split(',')
     # Filter out localhost for production
     #ALLOWED_HOSTS = [host.strip() for host in allowed_hosts if host.strip() and 'localhost' not in host and '127.0.0.1' not in host]
     
@@ -293,8 +308,13 @@ if BACK4APP_APP_ID or os.environ.get('BACK4APP_DEPLOYMENT'):
         '.containers.back4app.com',
         '.parseapi.back4app.com'
     ])
+
+    # Don't use wildcard in production, but allow container hostnames
+    if '*' in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.remove('*')
+
+    ALLOWED_HOSTS.append(get_container_hostname() or 'back4app-container')
     
-    # Security settings for HTTPS
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
